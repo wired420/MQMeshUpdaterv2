@@ -74,8 +74,10 @@ await using (var tar = new TarWriter(gzip, TarEntryFormat.Pax))
 }
 
 var sums = Directory.GetFiles(dist).Order(StringComparer.Ordinal)
-    .Select(f => $"{Convert.ToHexStringLower(SHA256.HashData(File.ReadAllBytes(f)))}  {Path.GetFileName(f)}");
-File.WriteAllLines(Path.Combine(dist, "SHA256SUMS.txt"), sums);
+    .Select(f => $"{Convert.ToHexStringLower(SHA256.HashData(File.ReadAllBytes(f)))}  {Path.GetFileName(f)}\n");
+
+// Unix line endings, so sha256sum --check reads it on Linux.
+File.WriteAllText(Path.Combine(dist, "SHA256SUMS.txt"), string.Concat(sums));
 
 Console.WriteLine();
 

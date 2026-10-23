@@ -59,4 +59,4 @@ jobs:
           tar -xzf mqmesh-updater-*-linux-x64.tar.gz -C app
           test -x app/mqmesh-updater
           app/mqmesh-updater --help
-          sha256sum --check --ignore-missing SHA256SUMS.txt
+          sha256sum --check SHA256SUMS.txt
