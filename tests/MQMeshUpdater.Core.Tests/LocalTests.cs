@@ -273,6 +273,63 @@ public class CatalogTests
     }
 }
 
+public class GroupingTests
+{
+    private const string WithNewExpansion = """
+        {"data":[{"code":"classic","name":"Classic","year":1999,"zones":1},{"code":"sor","name":"Shattering of Ro","year":2025,"zones":1},
+                 {"code":"fof","name":"Favors of Fortune","year":2026,"zones":0},{"code":"other","name":"Other","year":null,"zones":1}]}
+        """;
+
+    private static Catalog CatalogWith(string expansionsJson, params string[] zoneExpansions)
+    {
+        var manifest = new Manifest
+        {
+            Zones = zoneExpansions.Select((code, i) => Samples.Zone($"zone{i}", Samples.File(i + 1, $"zone{i}", [1]), expansion: code)).ToList(),
+        };
+
+        return new Catalog(manifest, MeshApiClient.ParseExpansions(expansionsJson), CatalogSource.Fresh);
+    }
+
+    [Fact]
+    public void Expansions_without_zones_get_no_group()
+    {
+        var groups = CatalogWith(WithNewExpansion, "classic", "sor", "other").Groups();
+
+        Assert.Equal(["classic", "sor", "other"], groups.Select(g => g.Code));
+        Assert.DoesNotContain(groups, g => g.Zones.Count == 0);
+    }
+
+    [Fact]
+    public void A_new_expansion_with_zones_sorts_before_other()
+    {
+        var groups = CatalogWith(WithNewExpansion, "other", "fof", "classic").Groups();
+
+        Assert.Equal(["classic", "fof", "other"], groups.Select(g => g.Code));
+        Assert.Equal("Favors of Fortune", groups[1].Name);
+    }
+
+    [Fact]
+    public void Unknown_codes_fall_into_other_without_losing_zones()
+    {
+        var groups = CatalogWith(Samples.ExpansionsJson, "classic", "notlisted", "other").Groups();
+
+        Assert.Equal(["classic", "other"], groups.Select(g => g.Code));
+        Assert.Equal(["zone1", "zone2"], groups[1].Zones.Select(z => z.ShortName));
+        Assert.Equal(3, groups.Sum(g => g.Zones.Count));
+    }
+
+    [Fact]
+    public void Without_an_expansion_list_codes_are_kept()
+    {
+        var catalog = new Catalog(
+            new Manifest { Zones = [Samples.Zone("a", null, expansion: "kunark"), Samples.Zone("b", null, expansion: "classic")] },
+            [],
+            CatalogSource.Offline);
+
+        Assert.Equal(["classic", "kunark"], catalog.Groups().Select(g => g.Code));
+    }
+}
+
 public class CommandLineTests
 {
     [Fact]

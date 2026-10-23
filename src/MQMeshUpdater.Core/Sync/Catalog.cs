@@ -15,6 +15,8 @@ public enum CatalogSource
     Offline,
 }
 
+public sealed record ZoneGroup(string Code, string Name, int Order, IReadOnlyList<ZoneSummary> Zones);
+
 /// <summary>
 /// The zones and expansions, from mqmesh.com or the local cache.
 /// </summary>
@@ -60,6 +62,25 @@ public sealed class Catalog
 
     public string ExpansionName(string code) =>
         Expansions.FirstOrDefault(e => e.Code == code)?.Name ?? (code.Length > 0 ? code : "Unknown");
+
+    /// <summary>
+    /// The group a zone belongs in: its expansion, or "other" when the code is
+    /// not in the expansion list. Without a list at all, codes are kept as they are.
+    /// </summary>
+    public string GroupCode(string code) =>
+        Expansions.Count == 0 || Expansions.Any(e => e.Code == code) ? code : "other";
+
+    /// <summary>
+    /// The zones grouped by expansion in release order. Expansions without
+    /// zones are left out.
+    /// </summary>
+    public IReadOnlyList<ZoneGroup> Groups() =>
+        Manifest.Zones
+            .GroupBy(z => GroupCode(z.Expansion))
+            .Select(g => new ZoneGroup(g.Key, ExpansionName(g.Key), SortOrder(g.Key), g.ToList()))
+            .OrderBy(g => g.Order)
+            .ThenBy(g => g.Code, StringComparer.Ordinal)
+            .ToList();
 
     /// <summary>
     /// Fetch the manifest and expansions, using the cache when nothing changed

@@ -210,26 +210,26 @@ public sealed partial class MainViewModel : ObservableObject
 
     private void BuildRows(Catalog catalog)
     {
-        var groups = new Dictionary<string, ExpansionGroupViewModel>();
+        var groups = new List<ExpansionGroupViewModel>();
         var rows = new List<ZoneRowViewModel>();
 
-        foreach (var zone in catalog.Manifest.Zones)
+        foreach (var zoneGroup in catalog.Groups())
         {
-            if (!groups.TryGetValue(zone.Expansion, out var group))
-            {
-                group = new ExpansionGroupViewModel(zone.Expansion, catalog.ExpansionName(zone.Expansion), catalog.SortOrder(zone.Expansion));
-                groups[zone.Expansion] = group;
-            }
+            var group = new ExpansionGroupViewModel(zoneGroup.Code, zoneGroup.Name, zoneGroup.Order);
+            groups.Add(group);
 
-            var row = new ZoneRowViewModel(this, zone, group);
-            row.Replan();
-            group.Rows.Add(row);
-            rows.Add(row);
+            foreach (var zone in zoneGroup.Zones)
+            {
+                var row = new ZoneRowViewModel(this, zone, group);
+                row.Replan();
+                group.Rows.Add(row);
+                rows.Add(row);
+            }
         }
 
         Rows.ReplaceAll(rows);
 
-        foreach (var group in groups.Values)
+        foreach (var group in groups)
         {
             group.Refresh();
         }
