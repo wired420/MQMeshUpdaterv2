@@ -1,0 +1,203 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="clr-namespace:MQMeshUpdater.ViewModels;assembly=MQMeshUpdater.ViewModels"
+        xmlns:local="clr-namespace:MQMeshUpdater.Linux"
+        x:Class="MQMeshUpdater.Linux.MainWindow"
+        x:DataType="vm:MainViewModel"
+        Title="MQMesh Updater"
+        Icon="avares://mqmesh-updater/Assets/app.ico"
+        Width="1100" Height="760" MinWidth="820" MinHeight="480"
+        WindowStartupLocation="CenterScreen"
+        Background="{StaticResource SurfaceBrush}"
+        FontSize="13">
+    <Window.KeyBindings>
+        <KeyBinding Gesture="F5" Command="{Binding RefreshCommand}" />
+    </Window.KeyBindings>
+
+    <Window.Styles>
+        <Style Selector="ListBox#ZonesList > ListBoxItem">
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="MinHeight" Value="0" />
+        </Style>
+        <Style Selector="ListBox#ZonesList > ListBoxItem:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="#F3F7FB" />
+        </Style>
+        <Style Selector="ListBox#ZonesList > ListBoxItem:selected /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="#E3F4F2" />
+        </Style>
+        <Style Selector="ToggleButton.expander /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Foreground" Value="{StaticResource HeaderBrush}" />
+        </Style>
+        <Style Selector="ToggleButton.expander:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="#D9DFE7" />
+        </Style>
+        <Style Selector="TextBlock.muted">
+            <Setter Property="Foreground" Value="{StaticResource MutedBrush}" />
+        </Style>
+        <Style Selector="TextBlock.columnHeader">
+            <Setter Property="Foreground" Value="{StaticResource MutedBrush}" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Margin" Value="8,8" />
+        </Style>
+    </Window.Styles>
+
+    <DockPanel>
+        <Menu DockPanel.Dock="Top" Background="White">
+            <MenuItem Header="_File">
+                <MenuItem Header="Choose _MacroQuest folder..." Command="{Binding ChooseMqFolderCommand}" />
+                <MenuItem Header="_Open mesh folder" Command="{Binding OpenMeshFolderCommand}" />
+                <Separator />
+                <MenuItem Header="_Refresh" Command="{Binding RefreshCommand}" InputGesture="F5" />
+                <MenuItem Header="Check for _community meshes" Command="{Binding CheckCommunityCommand}" />
+                <Separator />
+                <MenuItem Header="E_xit" Click="Exit_Click" />
+            </MenuItem>
+            <MenuItem Header="_Help">
+                <MenuItem Header="_Website (mqmesh.com)" Command="{Binding OpenWebsiteCommand}" />
+                <MenuItem Header="_Report a bug" Command="{Binding ReportBugCommand}" />
+                <Separator />
+                <MenuItem Header="_About" Command="{Binding ShowAboutCommand}" />
+            </MenuItem>
+        </Menu>
+
+        <!-- Header -->
+        <Border DockPanel.Dock="Top" Background="{StaticResource HeaderBrush}" Padding="18,12">
+            <Grid ColumnDefinitions="Auto,*">
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                    <Image Source="avares://mqmesh-updater/Assets/app.ico" Width="36" Height="36" Margin="0,0,12,0" />
+                    <StackPanel VerticalAlignment="Center">
+                        <TextBlock Text="MQMesh Updater" Foreground="White" FontSize="20" FontWeight="SemiBold" />
+                        <TextBlock Text="Navigation meshes from mqmesh.com" Foreground="{StaticResource AccentLightBrush}" FontSize="12" />
+                    </StackPanel>
+                </StackPanel>
+                <TextBlock Grid.Column="1" Text="{Binding SummaryText}" Foreground="#CBD5E1" HorizontalAlignment="Right" VerticalAlignment="Center"
+                           TextTrimming="CharacterEllipsis" Margin="24,0,0,0" />
+            </Grid>
+        </Border>
+
+        <!-- Folders -->
+        <Border DockPanel.Dock="Top" Background="White" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1" Padding="18,8">
+            <Grid ColumnDefinitions="Auto,*,Auto,Auto,*,Auto">
+                <TextBlock Classes="muted" Text="MacroQuest folder" VerticalAlignment="Center" Margin="0,0,8,0" />
+                <TextBlock Grid.Column="1" Text="{Binding MqFolder}" ToolTip.Tip="{Binding MqFolder}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                <Button Grid.Column="2" Classes="plain" Content="Change..." Command="{Binding ChooseMqFolderCommand}" />
+                <TextBlock Grid.Column="3" Classes="muted" Text="Meshes" VerticalAlignment="Center" Margin="24,0,8,0" />
+                <TextBlock Grid.Column="4" Text="{Binding MeshFolder}" ToolTip.Tip="{Binding MeshFolder}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                <Button Grid.Column="5" Classes="plain" Content="Open" Command="{Binding OpenMeshFolderCommand}" />
+            </Grid>
+        </Border>
+
+        <!-- Footer: progress and actions -->
+        <Border DockPanel.Dock="Bottom" Background="White" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,1,0,0" Padding="18,10">
+            <Grid ColumnDefinitions="*,Auto">
+                <StackPanel VerticalAlignment="Center" Margin="0,0,16,0">
+                    <TextBlock Text="{Binding StatusText}" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding StatusText}" />
+                    <ProgressBar Height="6" MinHeight="6" Margin="0,6,0,0" Maximum="{Binding ProgressMaximum}" Value="{Binding ProgressValue}"
+                                 Foreground="{StaticResource AccentBrush}" Background="{StaticResource GroupBrush}" IsVisible="{Binding IsBusy}" />
+                    <TextBlock Classes="muted" Text="{Binding ProgressText}" FontSize="11.5" Margin="0,3,0,0" TextTrimming="CharacterEllipsis" IsVisible="{Binding IsBusy}" />
+                </StackPanel>
+                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                    <CheckBox Content="Back up files before replacing" IsChecked="{Binding BackupBeforeOverwrite}" VerticalAlignment="Center" Margin="0,0,14,0"
+                              ToolTip.Tip="Copies replaced files to the mesh folder's backup subfolder first." />
+                    <Button Classes="plain" Content="Retry failed" Command="{Binding RetryFailedCommand}" Margin="0,0,6,0" IsVisible="{Binding HasFailed}" />
+                    <Button Classes="plain" Content="Cancel" Command="{Binding CancelCommand}" Margin="0,0,6,0" IsVisible="{Binding IsDownloading}" />
+                    <Button Classes="accent" Content="{Binding UpdateButtonText}" Command="{Binding UpdateCommand}" MinWidth="150" />
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- Search and filters -->
+        <Grid DockPanel.Dock="Top" Margin="18,12,18,8" ColumnDefinitions="*,Auto,*,Auto">
+            <TextBox x:Name="SearchBox" Text="{Binding SearchText}" MaxWidth="420" HorizontalAlignment="Stretch" VerticalContentAlignment="Center"
+                     Watermark="Search zones by name or short name..." ToolTip.Tip="Search by zone name or short name (Ctrl+F)" />
+            <ComboBox Grid.Column="1" Margin="8,0,0,0" MinWidth="190" VerticalAlignment="Stretch" VerticalContentAlignment="Center"
+                      ItemsSource="{Binding Filters}" SelectedItem="{Binding SelectedFilter}">
+                <ComboBox.ItemTemplate>
+                    <DataTemplate>
+                        <TextBlock Text="{ReflectionBinding Value}" />
+                    </DataTemplate>
+                </ComboBox.ItemTemplate>
+            </ComboBox>
+            <StackPanel Grid.Column="3" Orientation="Horizontal">
+                <Button Classes="plain" Content="Check for community meshes" Command="{Binding CheckCommunityCommand}"
+                        ToolTip.Tip="Find every zone with community-made meshes so you can pick one." />
+                <Button Classes="plain" Content="Refresh" Command="{Binding RefreshCommand}" ToolTip.Tip="Check mqmesh.com and your files again (F5)" />
+            </StackPanel>
+        </Grid>
+
+        <!-- Zones, grouped by expansion -->
+        <Border Margin="18,0,18,12" Background="White" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1">
+            <DockPanel>
+                <Border DockPanel.Dock="Top" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1">
+                    <Grid ColumnDefinitions="36,2*,1.1*,1.3*,80,2.4*,60" Margin="0,0,14,0">
+                        <TextBlock Grid.Column="1" Classes="columnHeader" Text="Zone" />
+                        <TextBlock Grid.Column="2" Classes="columnHeader" Text="Short name" />
+                        <TextBlock Grid.Column="3" Classes="columnHeader" Text="Status" />
+                        <TextBlock Grid.Column="4" Classes="columnHeader" Text="Size" HorizontalAlignment="Right" />
+                        <TextBlock Grid.Column="5" Classes="columnHeader" Text="Mesh" />
+                        <TextBlock Grid.Column="6" Classes="columnHeader" Text="Doors" HorizontalAlignment="Center" />
+                    </Grid>
+                </Border>
+
+                <ListBox x:Name="ZonesList" ItemsSource="{Binding VisibleItems}" Background="White" SelectionMode="Single">
+                    <ListBox.DataTemplates>
+                        <DataTemplate DataType="vm:ExpansionGroupViewModel">
+                            <Border Background="{StaticResource GroupBrush}" Padding="6,4">
+                                <StackPanel Orientation="Horizontal">
+                                    <ToggleButton Classes="expander" IsChecked="{Binding IsExpanded}" Width="26" Height="26" Padding="0" BorderThickness="0"
+                                                  VerticalAlignment="Center" ToolTip.Tip="Show or hide these zones">
+                                        <Panel>
+                                            <PathIcon Data="M 0 0 L 8 0 L 4 5 Z" Width="9" Height="6" IsVisible="{Binding IsExpanded}" />
+                                            <PathIcon Data="M 0 0 L 5 4 L 0 8 Z" Width="6" Height="9" IsVisible="{Binding !IsExpanded}" />
+                                        </Panel>
+                                    </ToggleButton>
+                                    <CheckBox IsChecked="{Binding AllManaged}" IsThreeState="False" VerticalAlignment="Center" Margin="2,0,4,0" MinWidth="0"
+                                              ToolTip.Tip="Manage every zone in this expansion" />
+                                    <TextBlock Text="{Binding Name}" FontWeight="SemiBold" FontSize="13.5" VerticalAlignment="Center" />
+                                    <TextBlock Classes="muted" Text="{Binding Summary}" Margin="10,0,0,0" VerticalAlignment="Center" />
+                                </StackPanel>
+                            </Border>
+                        </DataTemplate>
+
+                        <DataTemplate DataType="vm:ZoneRowViewModel">
+                            <Border BorderBrush="#EEF1F5" BorderThickness="0,0,0,1" Background="Transparent">
+                                <Grid ColumnDefinitions="36,2*,1.1*,1.3*,80,2.4*,60" Height="34">
+                                    <CheckBox IsChecked="{Binding IsManaged}" HorizontalAlignment="Center" MinWidth="0" ToolTip.Tip="Manage this zone" />
+                                    <TextBlock Grid.Column="1" Text="{Binding Name}" Margin="8,0" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                                    <TextBlock Grid.Column="2" Classes="muted" Text="{Binding ShortName}" FontFamily="DejaVu Sans Mono, Liberation Mono, monospace"
+                                               Margin="8,0" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                                    <StackPanel Grid.Column="3" Orientation="Horizontal" Margin="8,0" Background="Transparent" ToolTip.Tip="{Binding StatusToolTip}">
+                                        <Ellipse Width="8" Height="8" Margin="0,0,7,0" VerticalAlignment="Center"
+                                                 Fill="{Binding Status, Converter={x:Static local:StatusBrushConverter.Instance}}" />
+                                        <TextBlock Text="{Binding StatusText}" VerticalAlignment="Center"
+                                                   Foreground="{Binding Status, Converter={x:Static local:StatusBrushConverter.Instance}}" />
+                                    </StackPanel>
+                                    <TextBlock Grid.Column="4" Classes="muted" Text="{Binding SizeText}" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="8,0" />
+                                    <Grid Grid.Column="5" ColumnDefinitions="*,Auto" Margin="8,0">
+                                        <ComboBox ItemsSource="{Binding MeshOptions}" SelectedItem="{Binding SelectedOption}" HorizontalAlignment="Stretch"
+                                                  Height="28" MinHeight="28" Padding="8,2" VerticalContentAlignment="Center" FontSize="12.5"
+                                                  DropDownOpened="MeshCombo_DropDownOpened" ToolTip.Tip="{Binding SelectedOption.ToolTip}">
+                                            <ComboBox.ItemTemplate>
+                                                <DataTemplate x:DataType="vm:MeshOption">
+                                                    <TextBlock Text="{Binding Label}" ToolTip.Tip="{Binding ToolTip}" TextTrimming="CharacterEllipsis" />
+                                                </DataTemplate>
+                                            </ComboBox.ItemTemplate>
+                                        </ComboBox>
+                                        <Panel Grid.Column="1" VerticalAlignment="Center">
+                                            <TextBlock Text="{Binding CommunityText}" Foreground="{StaticResource CustomBrush}" FontWeight="SemiBold" Margin="6,0,0,0"
+                                                       ToolTip.Tip="Community meshes available" />
+                                            <TextBlock Classes="muted" Text="..." Margin="6,0,0,0" IsVisible="{Binding IsLoadingCommunity}" />
+                                        </Panel>
+                                    </Grid>
+                                    <CheckBox Grid.Column="6" IsChecked="{Binding IncludeDoors}" HorizontalAlignment="Center" MinWidth="0"
+                                              ToolTip.Tip="Also keep this zone's doors file up to date" IsEnabled="{Binding IsManaged}" IsVisible="{Binding HasDoors}" />
+                                </Grid>
+                            </Border>
+                        </DataTemplate>
+                    </ListBox.DataTemplates>
+                </ListBox>
+            </DockPanel>
+        </Border>
+    </DockPanel>
+</Window>

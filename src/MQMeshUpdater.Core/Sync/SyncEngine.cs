@@ -74,11 +74,13 @@ public sealed class SyncEngine
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList();
 
+        // Use the file's real name when only its case differs, as Wine would.
+        var onDisk = CaseInsensitive.FilesByName(folder);
         var done = 0;
 
         await Parallel.ForEachAsync(names, new ParallelOptions { MaxDegreeOfParallelism = 4, CancellationToken = cancellationToken }, async (name, token) =>
         {
-            var path = Path.Combine(folder, name);
+            var path = onDisk.TryGetValue(name, out var existing) ? existing : Path.Combine(folder, name);
 
             if (await Hashes.GetAsync(path, token).ConfigureAwait(false) is { } local)
             {

@@ -16,6 +16,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\src\MQMeshUpdater.Core\MQMeshUpdater.Core.csproj" />
+    <ProjectReference Include="..\..\src\MQMeshUpdater.ViewModels\MQMeshUpdater.ViewModels.csproj" />
   </ItemGroup>
 </Project>

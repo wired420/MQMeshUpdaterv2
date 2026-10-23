@@ -2,6 +2,7 @@ bin/
 obj/
 publish/
 artifacts/
+dist/
 TestResults/
 .vs/
 .vscode/

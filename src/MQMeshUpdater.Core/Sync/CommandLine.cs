@@ -20,21 +20,24 @@ public sealed class CommandLineOptions
     /// <summary>Whether to run without the window.</summary>
     public bool Headless => Update || Help || Error is not null;
 
-    public const string Usage = """
-        MQMesh Updater
+    public static string Usage => $"""
+        MQMesh Updater {UpdaterHost.Version}
 
         Usage:
-          MQMeshUpdater.exe                    Open the updater window.
-          MQMeshUpdater.exe --update [options] Apply your saved choices without a window.
+          {ProgramName}                    Open the updater window.
+          {ProgramName} --update [options] Apply your saved choices without a window.
 
         Options:
-          --mq <folder>  MacroQuest folder (default: the saved one, else the exe's folder).
+          --mq <folder>  MacroQuest folder (default: the saved one, else the program's folder).
           --quiet        Only print errors.
           --force        Also replace local files that match no known version.
           --help         Show this help.
 
         Exit codes: 0 success, 1 some files failed, 2 could not run.
         """;
+
+    /// <summary>The name the program was started as: MQMeshUpdater.exe or mqmesh-updater.</summary>
+    private static string ProgramName => Path.GetFileName(Environment.ProcessPath) is { Length: > 0 } name ? name : "MQMeshUpdater";
 
     public static CommandLineOptions Parse(IReadOnlyList<string> args)
     {

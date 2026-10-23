@@ -116,7 +116,9 @@ public static class ZonePlanner
             : known.Contains(local.Sha256) || Hashing.Same(ledger.Get(path), local.Sha256) ? FileState.Outdated
             : FileState.Custom;
 
-        return new FileTarget(file, path, local, state);
+        // Replace an existing file under its own name, so no second copy appears
+        // beside it on a case-sensitive file system.
+        return new FileTarget(file, local?.Path ?? path, local, state);
     }
 
     private static HashSet<string> KnownHashes(ZoneSummary zone, ZoneChoice choice, IEnumerable<FileSummary>? community)

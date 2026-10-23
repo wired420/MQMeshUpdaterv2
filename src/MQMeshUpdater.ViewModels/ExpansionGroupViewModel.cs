@@ -24,6 +24,14 @@ public sealed partial class ExpansionGroupViewModel : ObservableObject
 
     public List<ZoneRowViewModel> Rows { get; } = [];
 
+    /// <summary>Whether the group's zones are shown, for lists that draw their own headings.</summary>
+    [ObservableProperty]
+    private bool _isExpanded = true;
+
+    public event EventHandler? ExpandedChanged;
+
+    partial void OnIsExpandedChanged(bool value) => ExpandedChanged?.Invoke(this, EventArgs.Empty);
+
     public string Summary
     {
         get

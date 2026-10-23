@@ -3,6 +3,9 @@
     <OutputType>WinExe</OutputType>
     <TargetFramework>net10.0-windows</TargetFramework>
     <UseWPF>true</UseWPF>
+    <!-- Lets the solution restore and build on Linux too; publish the exe on
+         Windows, where the icon and manifest can be written into it. -->
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
     <AssemblyName>MQMeshUpdater</AssemblyName>
     <RootNamespace>MQMeshUpdater</RootNamespace>
     <ApplicationIcon>Assets\app.ico</ApplicationIcon>
@@ -16,11 +19,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <ProjectReference Include="..\MQMeshUpdater.Core\MQMeshUpdater.Core.csproj" />
+    <ProjectReference Include="..\MQMeshUpdater.ViewModels\MQMeshUpdater.ViewModels.csproj" />
   </ItemGroup>
 
   <ItemGroup>

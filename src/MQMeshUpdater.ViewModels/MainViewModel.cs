@@ -1,13 +1,5 @@
-using System.ComponentModel;
-using System.Diagnostics;
-using System.IO;
-using System.Windows;
-using System.Windows.Data;
-using System.Windows.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using Microsoft.Win32;
-using MQMeshUpdater.Core.Local;
 using MQMeshUpdater.Core.Sync;
 
 namespace MQMeshUpdater.ViewModels;
@@ -26,31 +18,38 @@ public sealed partial class MainViewModel : ObservableObject
     public const string WebsiteUrl = "https://mqmesh.com";
     public const string IssuesUrl = "https://github.com/wired420/MQMeshUpdaterv2/issues";
 
-    private readonly DispatcherTimer _saveTimer;
+    /// <summary>Above this many changes the visible list is rebuilt rather than edited.</summary>
+    private const int MaxIncrementalChanges = 100;
+
+    private readonly Dictionary<object, int> _positions = new(ReferenceEqualityComparer.Instance);
     private CancellationTokenSource? _cancel;
     private List<DownloadJob> _failed = [];
+    private int _saveGeneration;
 
-    public MainViewModel(SyncEngine engine)
+    public MainViewModel(SyncEngine engine, IUiServices ui)
     {
         Engine = engine;
+        Ui = ui;
         _backupBeforeOverwrite = engine.Settings.BackupBeforeOverwrite;
-
-        ZonesView = CollectionViewSource.GetDefaultView(Rows);
-        ZonesView.GroupDescriptions.Add(new PropertyGroupDescription(nameof(ZoneRowViewModel.Group)));
-        ZonesView.SortDescriptions.Add(new SortDescription("Group.Order", ListSortDirection.Ascending));
-        ZonesView.SortDescriptions.Add(new SortDescription(nameof(ZoneRowViewModel.Name), ListSortDirection.Ascending));
-        ZonesView.Filter = Matches;
-
-        // Save choices shortly after the last change rather than on every click.
-        _saveTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(500) };
-        _saveTimer.Tick += (_, _) => SaveSettings();
     }
 
     public SyncEngine Engine { get; }
 
+    public IUiServices Ui { get; }
+
+    /// <summary>Every zone, grouped by expansion in release order and sorted by name within each.</summary>
     public RangeObservableCollection<ZoneRowViewModel> Rows { get; } = [];
 
-    public ICollectionView ZonesView { get; }
+    public List<ExpansionGroupViewModel> Groups { get; private set; } = [];
+
+    /// <summary>
+    /// The expansion headings and matching zones in display order, skipping
+    /// collapsed groups, for lists that cannot group on their own.
+    /// </summary>
+    public RangeObservableCollection<object> VisibleItems { get; } = [];
+
+    /// <summary>Raised when the search, filter or a zone's status changes which zones match.</summary>
+    public event EventHandler? ViewChanged;
 
     public IReadOnlyList<KeyValuePair<ZoneFilter, string>> Filters { get; } =
     [
@@ -61,11 +60,18 @@ public sealed partial class MainViewModel : ObservableObject
         new(ZoneFilter.Community, "With community meshes"),
     ];
 
+    /// <summary>The <see cref="Filter"/> as one of <see cref="Filters"/>, for lists that select items rather than values.</summary>
+    public KeyValuePair<ZoneFilter, string> SelectedFilter
+    {
+        get => Filters.First(f => f.Key == Filter);
+        set => Filter = value.Key;
+    }
+
     public string MqFolder => Engine.MqFolder;
 
     public string MeshFolder => Engine.MeshFolder;
 
-    public string Version => typeof(MainViewModel).Assembly.GetName().Version?.ToString(3) ?? "2.0.0";
+    public string Version => UpdaterHost.Version;
 
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(UpdateCommand), nameof(RefreshCommand), nameof(CheckCommunityCommand), nameof(RetryFailedCommand), nameof(ChooseMqFolderCommand))]
@@ -116,9 +122,13 @@ public sealed partial class MainViewModel : ObservableObject
 
     public bool HasFailed => FailedCount > 0;
 
-    partial void OnSearchTextChanged(string value) => ZonesView.Refresh();
+    partial void OnSearchTextChanged(string value) => RefreshView();
 
-    partial void OnFilterChanged(ZoneFilter value) => ZonesView.Refresh();
+    partial void OnFilterChanged(ZoneFilter value)
+    {
+        OnPropertyChanged(nameof(SelectedFilter));
+        RefreshView();
+    }
 
     partial void OnBackupBeforeOverwriteChanged(bool value)
     {
@@ -126,25 +136,28 @@ public sealed partial class MainViewModel : ObservableObject
         SettingsChanged();
     }
 
-    public void SettingsChanged()
+    /// <summary>
+    /// Save choices shortly after the last change rather than on every click.
+    /// </summary>
+    public async void SettingsChanged()
     {
-        _saveTimer.Stop();
-        _saveTimer.Start();
+        var generation = ++_saveGeneration;
+        await Task.Delay(500);
+
+        if (generation == _saveGeneration)
+        {
+            SaveSettings();
+        }
     }
 
     public void SaveSettings()
     {
-        _saveTimer.Stop();
+        _saveGeneration++;
         Engine.Settings.Save(Engine.Paths);
     }
 
-    private bool Matches(object item)
+    public bool Matches(ZoneRowViewModel row)
     {
-        if (item is not ZoneRowViewModel row)
-        {
-            return false;
-        }
-
         var search = SearchText.Trim();
 
         if (search.Length > 0
@@ -212,21 +225,27 @@ public sealed partial class MainViewModel : ObservableObject
     {
         var groups = new List<ExpansionGroupViewModel>();
         var rows = new List<ZoneRowViewModel>();
+        _positions.Clear();
 
         foreach (var zoneGroup in catalog.Groups())
         {
             var group = new ExpansionGroupViewModel(zoneGroup.Code, zoneGroup.Name, zoneGroup.Order);
+            group.ExpandedChanged += (_, _) => RefreshView();
             groups.Add(group);
+            _positions[group] = _positions.Count;
 
-            foreach (var zone in zoneGroup.Zones)
+            foreach (var zone in zoneGroup.Zones.OrderBy(z => z.Name, StringComparer.CurrentCultureIgnoreCase))
             {
                 var row = new ZoneRowViewModel(this, zone, group);
                 row.Replan();
                 group.Rows.Add(row);
                 rows.Add(row);
+                _positions[row] = _positions.Count;
             }
         }
 
+        Groups = groups;
+        VisibleItems.ReplaceAll([]);
         Rows.ReplaceAll(rows);
 
         foreach (var group in groups)
@@ -235,6 +254,68 @@ public sealed partial class MainViewModel : ObservableObject
         }
 
         RefreshSummary();
+        RefreshView();
+    }
+
+    /// <summary>
+    /// Bring <see cref="VisibleItems"/> in line with the search and filter.
+    /// Small changes are applied in place so a list keeps its scroll position.
+    /// </summary>
+    public void RefreshView()
+    {
+        var items = new List<object>();
+
+        foreach (var group in Groups)
+        {
+            var rows = group.Rows.Where(Matches).ToList();
+
+            if (rows.Count == 0)
+            {
+                continue;
+            }
+
+            items.Add(group);
+
+            if (group.IsExpanded)
+            {
+                items.AddRange(rows);
+            }
+        }
+
+        var changes = new HashSet<object>(VisibleItems, ReferenceEqualityComparer.Instance);
+        changes.SymmetricExceptWith(items);
+
+        if (changes.Count > MaxIncrementalChanges)
+        {
+            VisibleItems.ReplaceAll(items);
+        }
+        else if (changes.Count > 0)
+        {
+            // Both lists follow the same overall order, so one merge pass turns the old into the new.
+            var index = 0;
+
+            foreach (var item in items)
+            {
+                while (index < VisibleItems.Count && !ReferenceEquals(VisibleItems[index], item) && _positions[VisibleItems[index]] < _positions[item])
+                {
+                    VisibleItems.RemoveAt(index);
+                }
+
+                if (index >= VisibleItems.Count || !ReferenceEquals(VisibleItems[index], item))
+                {
+                    VisibleItems.Insert(index, item);
+                }
+
+                index++;
+            }
+
+            while (VisibleItems.Count > index)
+            {
+                VisibleItems.RemoveAt(VisibleItems.Count - 1);
+            }
+        }
+
+        ViewChanged?.Invoke(this, EventArgs.Empty);
     }
 
     public void RefreshSummary()
@@ -269,7 +350,7 @@ public sealed partial class MainViewModel : ObservableObject
 
         if (Filter == ZoneFilter.NeedsAttention)
         {
-            ZonesView.Refresh();
+            RefreshView();
         }
     }
 
@@ -289,20 +370,17 @@ public sealed partial class MainViewModel : ObservableObject
         {
             var names = string.Join(", ", custom.Take(12).Select(p => p.Zone.ShortName)) + (custom.Count > 12 ? ", ..." : "");
             var backup = BackupBeforeOverwrite ? "They will be backed up first." : "Backups are turned off, so they will be lost.";
-            var answer = MessageBox.Show(
-                $"{custom.Count} zone(s) have local files that match no version on mqmesh.com, so they may be your own meshes:\n\n{names}\n\n"
-                + $"Replace them too? {backup}\n\nYes: replace them.  No: skip them, update the rest.  Cancel: do nothing.",
+            var answer = await Ui.AskReplaceCustomAsync(
                 "Replace custom meshes?",
-                MessageBoxButton.YesNoCancel,
-                MessageBoxImage.Warning,
-                MessageBoxResult.No);
+                $"{custom.Count} zone(s) have local files that match no version on mqmesh.com, so they may be your own meshes:\n\n{names}\n\n"
+                + $"Replace them too? {backup}");
 
-            if (answer == MessageBoxResult.Cancel)
+            if (answer == ReplaceCustomAnswer.Cancel)
             {
                 return;
             }
 
-            overwriteCustom = answer == MessageBoxResult.Yes;
+            overwriteCustom = answer == ReplaceCustomAnswer.Replace;
         }
 
         await DownloadAsync(SyncEngine.JobsFor(plans, overwriteCustom));
@@ -418,6 +496,8 @@ public sealed partial class MainViewModel : ObservableObject
                 row.Replan();
             }
 
+            RefreshView();
+
             StatusText = zones.Count == 0
                 ? "No zones have community meshes yet."
                 : $"{zones.Count} zone(s) have community meshes. Pick one from a zone's Mesh list.";
@@ -440,18 +520,15 @@ public sealed partial class MainViewModel : ObservableObject
     [RelayCommand(CanExecute = nameof(IsIdle))]
     private async Task ChooseMqFolderAsync()
     {
-        var dialog = new OpenFolderDialog
-        {
-            Title = "Choose your MacroQuest folder",
-            InitialDirectory = Directory.Exists(MqFolder) ? MqFolder : null,
-        };
+        var folder = await Ui.PickFolderAsync("Choose your MacroQuest folder", Directory.Exists(MqFolder) ? MqFolder : null);
 
-        if (dialog.ShowDialog() != true)
+        if (folder is null)
         {
             return;
         }
 
-        Engine.Settings.MqFolder = string.Equals(dialog.FolderName, Engine.DefaultMqFolder, StringComparison.OrdinalIgnoreCase) ? null : dialog.FolderName;
+        var comparison = OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
+        Engine.Settings.MqFolder = string.Equals(folder, Engine.DefaultMqFolder, comparison) ? null : folder;
         SaveSettings();
         await RefreshAsync();
     }
@@ -460,24 +537,17 @@ public sealed partial class MainViewModel : ObservableObject
     private void OpenMeshFolder()
     {
         Directory.CreateDirectory(MeshFolder);
-        Open(MeshFolder);
+        Ui.Open(MeshFolder);
     }
 
     [RelayCommand]
-    private static void OpenWebsite() => Open(WebsiteUrl);
+    private void OpenWebsite() => Ui.Open(WebsiteUrl);
 
     [RelayCommand]
-    private static void ReportBug() => Open(IssuesUrl);
+    private void ReportBug() => Ui.Open(IssuesUrl);
 
     [RelayCommand]
-    private void ShowAbout()
-    {
-        MessageBox.Show(
-            $"MQMesh Updater {Version}\n\nKeeps your MQ2Nav meshes in step with mqmesh.com.\n\n{WebsiteUrl}\n\nSettings: {Engine.Paths.DataFolder}",
-            "About MQMesh Updater",
-            MessageBoxButton.OK,
-            MessageBoxImage.Information);
-    }
-
-    private static void Open(string target) => Process.Start(new ProcessStartInfo(target) { UseShellExecute = true });
+    private Task ShowAboutAsync() => Ui.ShowMessageAsync(
+        "About MQMesh Updater",
+        $"MQMesh Updater {Version}\n\nKeeps your MQ2Nav meshes in step with mqmesh.com.\n\n{WebsiteUrl}\n\nSettings: {Engine.Paths.DataFolder}");
 }

@@ -1,6 +1,6 @@
 using System.ComponentModel;
 using System.Windows;
-using System.Windows.Controls;
+using System.Windows.Data;
 using System.Windows.Input;
 using MQMeshUpdater.Core.Local;
 using MQMeshUpdater.ViewModels;
@@ -9,13 +9,25 @@ namespace MQMeshUpdater;
 
 public partial class MainWindow : Window
 {
-    private readonly MainViewModel _viewModel;
+    private MainViewModel _viewModel = null!;
 
-    public MainWindow(MainViewModel viewModel)
+    public MainWindow()
     {
         InitializeComponent();
+    }
+
+    public void Attach(MainViewModel viewModel)
+    {
         _viewModel = viewModel;
         DataContext = viewModel;
+
+        var zones = CollectionViewSource.GetDefaultView(viewModel.Rows);
+        zones.GroupDescriptions.Add(new PropertyGroupDescription(nameof(ZoneRowViewModel.Group)));
+        zones.SortDescriptions.Add(new SortDescription("Group.Order", ListSortDirection.Ascending));
+        zones.SortDescriptions.Add(new SortDescription(nameof(ZoneRowViewModel.Name), ListSortDirection.Ascending));
+        zones.Filter = item => item is ZoneRowViewModel row && viewModel.Matches(row);
+        viewModel.ViewChanged += (_, _) => zones.Refresh();
+        ZonesGrid.ItemsSource = zones;
 
         RestorePlacement(viewModel.Engine.Settings.Window);
 

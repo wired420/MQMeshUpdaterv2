@@ -1,5 +1,4 @@
 using System.Collections.ObjectModel;
-using System.Net.Http;
 using CommunityToolkit.Mvvm.ComponentModel;
 using MQMeshUpdater.Core.Api;
 using MQMeshUpdater.Core.Local;

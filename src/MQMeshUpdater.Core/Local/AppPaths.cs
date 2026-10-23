@@ -9,7 +9,7 @@ public sealed class AppPaths
     {
         DataFolder = dataFolder
             ?? NonEmpty(Environment.GetEnvironmentVariable("MQMESHUPDATER_DATA"))
-            ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "MQMeshUpdater");
+            ?? Path.Combine(DefaultRoot(), "MQMeshUpdater");
     }
 
     public string DataFolder { get; }
@@ -31,8 +31,16 @@ public sealed class AppPaths
     private static string? NonEmpty(string? value) => string.IsNullOrWhiteSpace(value) ? null : value;
 
     /// <summary>
+    /// %LOCALAPPDATA% on Windows, $XDG_DATA_HOME or ~/.local/share on Linux,
+    /// or the exe's folder when neither is known (no HOME).
+    /// </summary>
+    private static string DefaultRoot() =>
+        NonEmpty(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData)) ?? AppContext.BaseDirectory;
+
+    /// <summary>
     /// The folder MQ2Nav reads meshes from: an explicit choice, else
-    /// resources\MQ2Nav or MQ2Nav, whichever already exists in the MacroQuest folder.
+    /// resources/MQ2Nav or MQ2Nav, whichever already exists in the MacroQuest folder.
+    /// Names are matched ignoring case, so a Wine prefix's "mq2nav" is found on Linux too.
     /// </summary>
     public static string ResolveMeshFolder(string mqFolder, string? meshFolder)
     {
@@ -41,20 +49,73 @@ public sealed class AppPaths
             return meshFolder;
         }
 
-        var resources = Path.Combine(mqFolder, "resources", "MQ2Nav");
-        var legacy = Path.Combine(mqFolder, "MQ2Nav");
+        var resources = CaseInsensitive.FindDirectory(mqFolder, "resources");
 
-        if (Directory.Exists(resources))
+        if (resources is not null && CaseInsensitive.FindDirectory(resources, "MQ2Nav") is { } nav)
         {
-            return resources;
+            return nav;
         }
 
-        if (Directory.Exists(legacy))
+        if (CaseInsensitive.FindDirectory(mqFolder, "MQ2Nav") is { } legacy)
         {
             return legacy;
         }
 
-        return Directory.Exists(Path.Combine(mqFolder, "resources")) ? resources : legacy;
+        return resources is not null ? Path.Combine(resources, "MQ2Nav") : Path.Combine(mqFolder, "MQ2Nav");
+    }
+}
+
+/// <summary>
+/// Finds files and folders the way Windows (and Wine) would, ignoring case,
+/// on file systems that do not.
+/// </summary>
+public static class CaseInsensitive
+{
+    /// <summary>
+    /// The child folder with this name, spelled as it is on disk, or null.
+    /// An exact match wins over one that differs only by case.
+    /// </summary>
+    public static string? FindDirectory(string parent, string name)
+    {
+        try
+        {
+            var matches = Directory.EnumerateDirectories(parent)
+                .Where(d => string.Equals(Path.GetFileName(d), name, StringComparison.OrdinalIgnoreCase))
+                .ToList();
+
+            return matches.FirstOrDefault(d => Path.GetFileName(d) == name) ?? matches.FirstOrDefault();
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// The files in a folder by name, ignoring case. When names differ only by
+    /// case, the all-lowercase one (as mqmesh.com serves them) wins.
+    /// </summary>
+    public static Dictionary<string, string> FilesByName(string folder)
+    {
+        var files = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+        try
+        {
+            foreach (var path in Directory.EnumerateFiles(folder))
+            {
+                var name = Path.GetFileName(path);
+
+                if (!files.ContainsKey(name) || name == name.ToLowerInvariant())
+                {
+                    files[name] = path;
+                }
+            }
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+        }
+
+        return files;
     }
 }
 

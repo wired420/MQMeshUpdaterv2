@@ -7,7 +7,26 @@ on:
   workflow_dispatch:
 
 jobs:
-  build:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Test
+        run: dotnet test --configuration Release --verbosity normal
+
+  # Both apps come from one Windows run: only Windows can put the icon and
+  # manifest into the exe, and the Linux app cross-publishes fine.
+  dist:
+    needs: test
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -16,20 +35,28 @@ jobs:
         with:
           dotnet-version: 10.0.x
 
-      - name: Restore
-        run: dotnet restore
-
-      - name: Build
-        run: dotnet build --configuration Release --no-restore
-
-      - name: Test
-        run: dotnet test --configuration Release --no-build --verbosity normal
-
-      - name: Publish
-        run: dotnet publish src/MQMeshUpdater --configuration Release --runtime win-x64 --output publish
+      - name: Build dist
+        run: ./build.ps1 --skip-tests
 
       - uses: actions/upload-artifact@v4
         with:
-          name: MQMeshUpdater-win-x64
-          path: publish/MQMeshUpdater.exe
+          name: dist
+          path: dist/*
           if-no-files-found: error
+
+  # The Linux file built on Windows must start on Linux.
+  linux-smoke:
+    needs: dist
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+
+      - name: Run the packaged Linux app
+        run: |
+          mkdir app
+          tar -xzf mqmesh-updater-*-linux-x64.tar.gz -C app
+          test -x app/mqmesh-updater
+          app/mqmesh-updater --help
+          sha256sum --check --ignore-missing SHA256SUMS.txt

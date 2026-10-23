@@ -1,7 +1,9 @@
 <Solution>
   <Folder Name="/src/">
     <Project Path="src/MQMeshUpdater.Core/MQMeshUpdater.Core.csproj" />
+    <Project Path="src/MQMeshUpdater.ViewModels/MQMeshUpdater.ViewModels.csproj" />
     <Project Path="src/MQMeshUpdater/MQMeshUpdater.csproj" />
+    <Project Path="src/MQMeshUpdater.Linux/MQMeshUpdater.Linux.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/MQMeshUpdater.Core.Tests/MQMeshUpdater.Core.Tests.csproj" />

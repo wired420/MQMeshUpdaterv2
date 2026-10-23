@@ -1,0 +1,48 @@
+<Application xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="MQMeshUpdater.Linux.App"
+             RequestedThemeVariant="Light">
+    <Application.Resources>
+        <SolidColorBrush x:Key="HeaderBrush" Color="#14243B" />
+        <SolidColorBrush x:Key="AccentBrush" Color="#0F9B8E" />
+        <SolidColorBrush x:Key="AccentLightBrush" Color="#2DD4BF" />
+        <SolidColorBrush x:Key="SurfaceBrush" Color="#F6F8FB" />
+        <SolidColorBrush x:Key="BorderBrush" Color="#D9DFE7" />
+        <SolidColorBrush x:Key="MutedBrush" Color="#5B6B7F" />
+        <SolidColorBrush x:Key="GroupBrush" Color="#E9EEF4" />
+
+        <SolidColorBrush x:Key="OkBrush" Color="#15803D" />
+        <SolidColorBrush x:Key="UpdateBrush" Color="#B45309" />
+        <SolidColorBrush x:Key="MissingBrush" Color="#B91C1C" />
+        <SolidColorBrush x:Key="CustomBrush" Color="#7C3AED" />
+    </Application.Resources>
+
+    <Application.Styles>
+        <FluentTheme />
+
+        <Style Selector="Button.accent">
+            <Setter Property="Background" Value="{StaticResource AccentBrush}" />
+            <Setter Property="Foreground" Value="White" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Padding" Value="16,7" />
+            <Setter Property="CornerRadius" Value="4" />
+            <Setter Property="HorizontalContentAlignment" Value="Center" />
+        </Style>
+        <Style Selector="Button.accent:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="#0B7F75" />
+            <Setter Property="Foreground" Value="White" />
+        </Style>
+        <Style Selector="Button.accent:disabled /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="#A9B6C4" />
+            <Setter Property="Foreground" Value="White" />
+        </Style>
+
+        <Style Selector="Button.plain">
+            <Setter Property="Padding" Value="12,6" />
+            <Setter Property="Margin" Value="6,0,0,0" />
+            <Setter Property="Background" Value="White" />
+            <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+        </Style>
+    </Application.Styles>
+</Application>
