@@ -8,6 +8,7 @@ public sealed class AppPaths
     public AppPaths(string? dataFolder = null)
     {
         DataFolder = dataFolder
+            ?? NonEmpty(Environment.GetEnvironmentVariable("MQMESHUPDATER_DATA"))
             ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "MQMeshUpdater");
     }
 
@@ -26,6 +27,8 @@ public sealed class AppPaths
     public string Installed => Path.Combine(DataFolder, "installed.json");
 
     public void EnsureExists() => Directory.CreateDirectory(DataFolder);
+
+    private static string? NonEmpty(string? value) => string.IsNullOrWhiteSpace(value) ? null : value;
 
     /// <summary>
     /// The folder MQ2Nav reads meshes from: an explicit choice, else

@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using MQMeshUpdater.Core.Api;
 
 namespace MQMeshUpdater.Core.Local;
@@ -27,6 +28,7 @@ public sealed class ZoneChoice
 
     public bool Doors { get; set; } = true;
 
+    [JsonIgnore]
     public bool IsDefault => Mode == ZoneMode.Site && Doors;
 
     public static ZoneChoice Default => new();

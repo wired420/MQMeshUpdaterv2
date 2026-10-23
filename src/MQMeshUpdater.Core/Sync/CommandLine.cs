@@ -147,7 +147,7 @@ public static class CommandLineRunner
 
         if (jobs.Count == 0)
         {
-            Say("Everything is up to date.");
+            Say(custom.Count > 0 && !options.Force ? "Nothing else to update." : "Everything is up to date.");
             return Success;
         }
 

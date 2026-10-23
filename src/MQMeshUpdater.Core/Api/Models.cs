@@ -36,6 +36,7 @@ public sealed class FileSummary
     /// <summary>Set on community versions only.</summary>
     public string? Notes { get; set; }
 
+    [JsonIgnore]
     public bool IsMesh => Type == FileTypes.Mesh;
 }
 
