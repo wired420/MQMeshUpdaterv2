@@ -26,11 +26,16 @@ This replaces the original MeshUpdater and uses the mqmesh.com v1 API.
   If mqmesh.com can't be reached, the last saved zone list is used.
 - **Command-line mode** for scheduled tasks (see below).
 
+## Requirements
+
+- Windows 10 or 11, 64-bit.
+- The [.NET 10 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/10.0) (x64). Newer major versions work
+  too. If no suitable runtime is installed, Windows says so when the updater starts and offers a download link.
+
 ## Getting started
 
 1. Download `MQMeshUpdater.exe` from the latest build (the **Actions** tab, artifact `MQMeshUpdater-win-x64`) and
-   put it in your MacroQuest folder. It's a single file
-   and needs no .NET install.
+   put it in your MacroQuest folder. It's a single small file.
 2. Run it. It finds your mesh folder and shows every zone's status.
 3. Click **Update** to download everything that is missing or out of date.
 
@@ -78,6 +83,9 @@ Windows doesn't wait for desktop apps by default. To see output and the exit cod
 `start /wait MQMeshUpdater.exe --update`. From PowerShell, use
 `Start-Process .\MQMeshUpdater.exe -ArgumentList '--update' -Wait -PassThru`. Task Scheduler waits on its own.
 
+Install the .NET Desktop Runtime before scheduling `--update`. If the runtime is missing, Windows shows its
+"install .NET" dialog instead of running the update.
+
 ## Settings and caches
 
 Everything is kept in `%LOCALAPPDATA%\MQMeshUpdater`:
@@ -103,7 +111,8 @@ dotnet test
 dotnet publish src/MQMeshUpdater -c Release -r win-x64 -o publish
 ```
 
-The publish step produces one self-contained `publish\MQMeshUpdater.exe`. GitHub Actions builds, tests and publishes
+The publish step produces a single `publish\MQMeshUpdater.exe` of about 600 KB. It runs on the installed .NET 10
+Desktop Runtime, or a newer one. GitHub Actions builds, tests and publishes
 on every push to `main`, and the exe is attached to each run as an artifact.
 
 ### Layout
