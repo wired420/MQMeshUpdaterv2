@@ -1,0 +1,304 @@
+<Window x:Class="MQMeshUpdater.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="clr-namespace:MQMeshUpdater.ViewModels"
+        xmlns:sync="clr-namespace:MQMeshUpdater.Core.Sync;assembly=MQMeshUpdater.Core"
+        Title="MQMesh Updater"
+        Icon="Assets/app.ico"
+        Width="1100" Height="760" MinWidth="820" MinHeight="480"
+        Background="{StaticResource SurfaceBrush}"
+        FontFamily="Segoe UI" FontSize="13"
+        d:DataContext="{d:DesignInstance vm:MainViewModel}"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        mc:Ignorable="d">
+    <Window.Resources>
+        <BooleanToVisibilityConverter x:Key="BoolToVisibility" />
+    </Window.Resources>
+
+    <DockPanel>
+        <Menu DockPanel.Dock="Top" Background="White">
+            <MenuItem Header="_File">
+                <MenuItem Header="Choose _MacroQuest folder..." Command="{Binding ChooseMqFolderCommand}" />
+                <MenuItem Header="_Open mesh folder" Command="{Binding OpenMeshFolderCommand}" />
+                <Separator />
+                <MenuItem Header="_Refresh" Command="{Binding RefreshCommand}" InputGestureText="F5" />
+                <MenuItem Header="Check for _community meshes" Command="{Binding CheckCommunityCommand}" />
+                <Separator />
+                <MenuItem Header="E_xit" Click="Exit_Click" />
+            </MenuItem>
+            <MenuItem Header="_Help">
+                <MenuItem Header="_Website (mqmesh.com)" Command="{Binding OpenWebsiteCommand}" />
+                <MenuItem Header="_Report a bug" Command="{Binding ReportBugCommand}" />
+                <Separator />
+                <MenuItem Header="_About" Command="{Binding ShowAboutCommand}" />
+            </MenuItem>
+        </Menu>
+
+        <!-- Header -->
+        <Border DockPanel.Dock="Top" Background="{StaticResource HeaderBrush}" Padding="18,12">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                    <Image Source="Assets/app.ico" Width="36" Height="36" Margin="0,0,12,0" RenderOptions.BitmapScalingMode="HighQuality" />
+                    <StackPanel VerticalAlignment="Center">
+                        <TextBlock Text="MQMesh Updater" Foreground="White" FontSize="20" FontWeight="SemiBold" />
+                        <TextBlock Text="Navigation meshes from mqmesh.com" Foreground="{StaticResource AccentLightBrush}" FontSize="12" />
+                    </StackPanel>
+                </StackPanel>
+                <TextBlock Grid.Column="1" Text="{Binding SummaryText}" Foreground="#CBD5E1" HorizontalAlignment="Right" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" Margin="24,0,0,0" />
+            </Grid>
+        </Border>
+
+        <!-- Folders -->
+        <Border DockPanel.Dock="Top" Background="White" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1" Padding="18,8">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <TextBlock Text="MacroQuest folder" Foreground="{StaticResource MutedBrush}" VerticalAlignment="Center" Margin="0,0,8,0" />
+                <TextBlock Grid.Column="1" Text="{Binding MqFolder}" ToolTip="{Binding MqFolder}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                <Button Grid.Column="2" Content="Change..." Style="{StaticResource PlainButton}" Command="{Binding ChooseMqFolderCommand}" />
+                <TextBlock Grid.Column="3" Text="Meshes" Foreground="{StaticResource MutedBrush}" VerticalAlignment="Center" Margin="24,0,8,0" />
+                <TextBlock Grid.Column="4" Text="{Binding MeshFolder}" ToolTip="{Binding MeshFolder}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                <Button Grid.Column="5" Content="Open" Style="{StaticResource PlainButton}" Command="{Binding OpenMeshFolderCommand}" />
+            </Grid>
+        </Border>
+
+        <!-- Footer: progress and actions -->
+        <Border DockPanel.Dock="Bottom" Background="White" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,1,0,0" Padding="18,10">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <StackPanel VerticalAlignment="Center" Margin="0,0,16,0">
+                    <TextBlock Text="{Binding StatusText}" TextTrimming="CharacterEllipsis" ToolTip="{Binding StatusText}" />
+                    <ProgressBar Height="6" Margin="0,6,0,0" Maximum="{Binding ProgressMaximum}" Value="{Binding ProgressValue}"
+                                 Foreground="{StaticResource AccentBrush}" Background="{StaticResource GroupBrush}" BorderThickness="0"
+                                 Visibility="{Binding IsBusy, Converter={StaticResource BoolToVisibility}}" />
+                    <TextBlock Text="{Binding ProgressText}" Foreground="{StaticResource MutedBrush}" FontSize="11.5" Margin="0,3,0,0" TextTrimming="CharacterEllipsis"
+                               Visibility="{Binding IsBusy, Converter={StaticResource BoolToVisibility}}" />
+                </StackPanel>
+                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                    <CheckBox Content="Back up files before replacing" IsChecked="{Binding BackupBeforeOverwrite}" VerticalAlignment="Center" Margin="0,0,14,0"
+                              ToolTip="Copies replaced files to the mesh folder's backup subfolder first." />
+                    <Button Content="Retry failed" Style="{StaticResource PlainButton}" Command="{Binding RetryFailedCommand}" Margin="0,0,6,0"
+                            Visibility="{Binding HasFailed, Converter={StaticResource BoolToVisibility}}" />
+                    <Button Content="Cancel" Style="{StaticResource PlainButton}" Command="{Binding CancelCommand}" Margin="0,0,6,0"
+                            Visibility="{Binding IsDownloading, Converter={StaticResource BoolToVisibility}}" />
+                    <Button Content="{Binding UpdateButtonText}" Style="{StaticResource AccentButton}" Command="{Binding UpdateCommand}" MinWidth="150" />
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- Search and filters -->
+        <Grid DockPanel.Dock="Top" Margin="18,12,18,8">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" MaxWidth="420" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <Grid>
+                <TextBox x:Name="SearchBox" Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}" Padding="8,6" VerticalContentAlignment="Center"
+                         BorderBrush="{StaticResource BorderBrush}" ToolTip="Search by zone name or short name (Ctrl+F)" />
+                <TextBlock Text="Search zones by name or short name..." Foreground="#94A3B8" Margin="11,0,0,0" VerticalAlignment="Center" IsHitTestVisible="False">
+                    <TextBlock.Style>
+                        <Style TargetType="TextBlock">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding Text, ElementName=SearchBox}" Value="">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
+            </Grid>
+            <ComboBox Grid.Column="1" Margin="8,0,0,0" MinWidth="190" VerticalContentAlignment="Center"
+                      ItemsSource="{Binding Filters}" DisplayMemberPath="Value" SelectedValuePath="Key" SelectedValue="{Binding Filter}" />
+            <StackPanel Grid.Column="3" Orientation="Horizontal">
+                <Button Content="Check for community meshes" Style="{StaticResource PlainButton}" Command="{Binding CheckCommunityCommand}"
+                        ToolTip="Find every zone with community-made meshes so you can pick one." />
+                <Button Content="Refresh" Style="{StaticResource PlainButton}" Command="{Binding RefreshCommand}" ToolTip="Check mqmesh.com and your files again (F5)" />
+            </StackPanel>
+        </Grid>
+
+        <!-- Zones, grouped by expansion -->
+        <DataGrid x:Name="ZonesGrid" Margin="18,0,18,12" ItemsSource="{Binding ZonesView}"
+                  AutoGenerateColumns="False" IsReadOnly="True" CanUserAddRows="False" CanUserDeleteRows="False" CanUserReorderColumns="False"
+                  CanUserSortColumns="False" SelectionMode="Single" HeadersVisibility="Column" GridLinesVisibility="Horizontal"
+                  HorizontalGridLinesBrush="#EEF1F5" BorderBrush="{StaticResource BorderBrush}" Background="White" RowBackground="White"
+                  RowHeight="32" EnableRowVirtualization="True" VirtualizingPanel.IsVirtualizing="True"
+                  VirtualizingPanel.IsVirtualizingWhenGrouping="True" VirtualizingPanel.VirtualizationMode="Standard"
+                  VirtualizingPanel.ScrollUnit="Pixel">
+            <DataGrid.Resources>
+                <Style TargetType="DataGridColumnHeader">
+                    <Setter Property="Background" Value="White" />
+                    <Setter Property="Foreground" Value="{StaticResource MutedBrush}" />
+                    <Setter Property="FontWeight" Value="SemiBold" />
+                    <Setter Property="Padding" Value="8,8" />
+                    <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}" />
+                    <Setter Property="BorderThickness" Value="0,0,0,1" />
+                </Style>
+                <Style TargetType="DataGridCell">
+                    <Setter Property="BorderThickness" Value="0" />
+                    <Setter Property="Padding" Value="8,0" />
+                    <Setter Property="Template">
+                        <Setter.Value>
+                            <ControlTemplate TargetType="DataGridCell">
+                                <Border Padding="{TemplateBinding Padding}" Background="Transparent">
+                                    <ContentPresenter VerticalAlignment="Center" />
+                                </Border>
+                            </ControlTemplate>
+                        </Setter.Value>
+                    </Setter>
+                    <Setter Property="Foreground" Value="Black" />
+                </Style>
+                <Style TargetType="DataGridRow">
+                    <Style.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter Property="Background" Value="#F3F7FB" />
+                        </Trigger>
+                        <Trigger Property="IsSelected" Value="True">
+                            <Setter Property="Background" Value="#E3F4F2" />
+                        </Trigger>
+                    </Style.Triggers>
+                </Style>
+            </DataGrid.Resources>
+
+            <DataGrid.GroupStyle>
+                <GroupStyle>
+                    <GroupStyle.ContainerStyle>
+                        <Style TargetType="GroupItem">
+                            <Setter Property="Template">
+                                <Setter.Value>
+                                    <ControlTemplate TargetType="GroupItem">
+                                        <Expander IsExpanded="True" Background="{StaticResource GroupBrush}" BorderThickness="0" Padding="0">
+                                            <Expander.Header>
+                                                <StackPanel Orientation="Horizontal" Margin="2,4">
+                                                    <CheckBox IsChecked="{Binding Name.AllManaged, Mode=TwoWay}" IsThreeState="False" VerticalAlignment="Center" Margin="0,0,8,0"
+                                                              ToolTip="Manage every zone in this expansion" />
+                                                    <TextBlock Text="{Binding Name.Name}" FontWeight="SemiBold" FontSize="13.5" VerticalAlignment="Center" />
+                                                    <TextBlock Text="{Binding Name.Summary}" Foreground="{StaticResource MutedBrush}" Margin="10,0,0,0" VerticalAlignment="Center" />
+                                                </StackPanel>
+                                            </Expander.Header>
+                                            <ItemsPresenter />
+                                        </Expander>
+                                    </ControlTemplate>
+                                </Setter.Value>
+                            </Setter>
+                        </Style>
+                    </GroupStyle.ContainerStyle>
+                </GroupStyle>
+            </DataGrid.GroupStyle>
+
+            <DataGrid.Columns>
+                <DataGridTemplateColumn Width="36" MinWidth="36">
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate DataType="vm:ZoneRowViewModel">
+                            <CheckBox IsChecked="{Binding IsManaged, UpdateSourceTrigger=PropertyChanged}" HorizontalAlignment="Center" ToolTip="Manage this zone" />
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                </DataGridTemplateColumn>
+
+                <DataGridTextColumn Header="Zone" Binding="{Binding Name}" Width="2*" MinWidth="200" />
+
+                <DataGridTemplateColumn Header="Short name" Width="1.1*" MinWidth="130">
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate DataType="vm:ZoneRowViewModel">
+                            <TextBlock Text="{Binding ShortName}" FontFamily="Consolas" Foreground="{StaticResource MutedBrush}" />
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                </DataGridTemplateColumn>
+
+                <DataGridTemplateColumn Header="Status" Width="1.3*" MinWidth="140">
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate DataType="vm:ZoneRowViewModel">
+                            <StackPanel Orientation="Horizontal" ToolTip="{Binding StatusToolTip}" Background="Transparent">
+                                <Ellipse x:Name="Dot" Width="8" Height="8" Margin="0,0,7,0" Fill="#94A3B8" VerticalAlignment="Center" />
+                                <TextBlock x:Name="Label" Text="{Binding StatusText}" Foreground="{StaticResource MutedBrush}" />
+                            </StackPanel>
+                            <DataTemplate.Triggers>
+                                <DataTrigger Binding="{Binding Status}" Value="{x:Static sync:ZoneStatus.UpToDate}">
+                                    <Setter TargetName="Dot" Property="Fill" Value="{StaticResource OkBrush}" />
+                                    <Setter TargetName="Label" Property="Foreground" Value="{StaticResource OkBrush}" />
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding Status}" Value="{x:Static sync:ZoneStatus.UpdateAvailable}">
+                                    <Setter TargetName="Dot" Property="Fill" Value="{StaticResource UpdateBrush}" />
+                                    <Setter TargetName="Label" Property="Foreground" Value="{StaticResource UpdateBrush}" />
+                                    <Setter TargetName="Label" Property="FontWeight" Value="SemiBold" />
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding Status}" Value="{x:Static sync:ZoneStatus.Missing}">
+                                    <Setter TargetName="Dot" Property="Fill" Value="{StaticResource MissingBrush}" />
+                                    <Setter TargetName="Label" Property="Foreground" Value="{StaticResource MissingBrush}" />
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding Status}" Value="{x:Static sync:ZoneStatus.Custom}">
+                                    <Setter TargetName="Dot" Property="Fill" Value="{StaticResource CustomBrush}" />
+                                    <Setter TargetName="Label" Property="Foreground" Value="{StaticResource CustomBrush}" />
+                                </DataTrigger>
+                            </DataTemplate.Triggers>
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                </DataGridTemplateColumn>
+
+                <DataGridTemplateColumn Header="Size" Width="80" MinWidth="80">
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate DataType="vm:ZoneRowViewModel">
+                            <TextBlock Text="{Binding SizeText}" HorizontalAlignment="Right" Foreground="{StaticResource MutedBrush}" />
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                </DataGridTemplateColumn>
+
+                <DataGridTemplateColumn Header="Mesh" Width="2.4*" MinWidth="250">
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate DataType="vm:ZoneRowViewModel">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <ComboBox ItemsSource="{Binding MeshOptions}" SelectedItem="{Binding SelectedOption, Mode=TwoWay}"
+                                          DisplayMemberPath="Label" DropDownOpened="MeshCombo_DropDownOpened" Height="24" Padding="6,2"
+                                          VerticalContentAlignment="Center" ToolTip="{Binding SelectedOption.ToolTip}">
+                                    <ComboBox.ItemContainerStyle>
+                                        <Style TargetType="ComboBoxItem">
+                                            <Setter Property="ToolTip" Value="{Binding ToolTip}" />
+                                        </Style>
+                                    </ComboBox.ItemContainerStyle>
+                                </ComboBox>
+                                <TextBlock Grid.Column="1" Text="{Binding CommunityText}" Foreground="{StaticResource CustomBrush}" FontWeight="SemiBold"
+                                           Margin="6,0,0,0" VerticalAlignment="Center" ToolTip="Community meshes available" />
+                                <TextBlock Grid.Column="1" Text="..." Foreground="{StaticResource MutedBrush}" Margin="6,0,0,0" VerticalAlignment="Center"
+                                           Visibility="{Binding IsLoadingCommunity, Converter={StaticResource BoolToVisibility}}" />
+                            </Grid>
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                </DataGridTemplateColumn>
+
+                <DataGridTemplateColumn Header="Doors" Width="60" MinWidth="60">
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate DataType="vm:ZoneRowViewModel">
+                            <CheckBox x:Name="Doors" IsChecked="{Binding IncludeDoors, UpdateSourceTrigger=PropertyChanged}" HorizontalAlignment="Center"
+                                      ToolTip="Also keep this zone's doors file up to date" IsEnabled="{Binding IsManaged}" />
+                            <DataTemplate.Triggers>
+                                <DataTrigger Binding="{Binding HasDoors}" Value="False">
+                                    <Setter TargetName="Doors" Property="Visibility" Value="Hidden" />
+                                </DataTrigger>
+                            </DataTemplate.Triggers>
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                </DataGridTemplateColumn>
+            </DataGrid.Columns>
+        </DataGrid>
+    </DockPanel>
+</Window>
